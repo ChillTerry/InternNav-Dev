@@ -5,3 +5,4 @@ from .instruction_encoder import InstructionEncoder
 from .instruction_longCLIP_encoder import InstructionLongCLIPEncoder
 from .instruction_roberta_encoder import LanguageEncoder
 from .vision_language_encoder import VisionLanguageEncoder
+from .DFormerv2 import RGBDEncoder
