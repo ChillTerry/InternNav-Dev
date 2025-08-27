@@ -9,6 +9,7 @@ from internnav.utils.common_log_util import common_logger as logger
 from .basemodel.cma.cma_clip_policy import CMA_CLIP_Net, CMACLIPModelConfig
 from .basemodel.cma.cma_policy import CMAModelConfig, CMANet
 from .basemodel.rdp.rdp_policy import RDPNet, RDPModelConfig
+from .basemodel.rdp2.rdp2_policy import RDP2Net, RDP2ModelConfig
 from .basemodel.navdp.navdp_policy import NavDPModelConfig, NavDPNet
 
 from .basemodel.seq2seq.seq2seq_policy import Seq2SeqNet, Seq2SeqModelConfig
@@ -33,6 +34,8 @@ def get_policy(policy_name):
         return InternVLAN1Net
     elif policy_name == 'NavDP_Policy':
         return NavDPNet
+    elif policy_name == 'RDP2_Policy':
+        return RDP2Net
     else:
         raise ValueError(f'Policy {policy_name} not found')
 
@@ -50,6 +53,8 @@ def get_config(policy_name):
         return InternVLAN1ModelConfig
     elif policy_name == 'NavDP_Policy':
         return NavDPModelConfig
+    elif policy_name == 'RDP2_Policy':
+        return RDP2ModelConfig
     else:
         raise ValueError(f'Policy {policy_name} not found')
 

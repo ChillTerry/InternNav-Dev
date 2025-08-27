@@ -54,6 +54,13 @@ class ImageEncoder(BaseModel, extra='allow'):
     depth: Optional[ImageEncoderDepth] = None
 
 
+class RGBDEncoder(BaseModel, extra='allow'):
+    model_name: Optional[str]
+    model_path: Optional[str]
+    feature_channels: Optional[int]
+    out_channels: Optional[int]
+
+
 class CrossModalEncoder(BaseModel, extra='allow'):
     load_model: Optional[bool]
     input_type: Optional[int]
@@ -189,6 +196,7 @@ class ModelCfg(BaseModel, extra='allow'):
     len_traj_act: Optional[int] = None
     text_encoder: Optional[TextEncoder] = None
     image_encoder: Optional[ImageEncoder] = None
+    rgbd_encoder: Optional[RGBDEncoder] = None
     cross_modal_encoder: Optional[CrossModalEncoder] = None
     state_encoder: Optional[StateEncoder]
     progress_monitor: Optional[ProgressMonitor] = None

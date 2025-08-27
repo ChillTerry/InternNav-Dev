@@ -1,8 +1,11 @@
 #!/bin/bash
 
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate internutopia
+
 # Default values
-NAME=rdp_train
-MODEL=rdp
+NAME=rdp2_train_0827
+MODEL=rdp2
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -25,11 +28,15 @@ done
 # Set GPU devices and NUM_GPUS
 case $MODEL in
     "rdp")
-        export CUDA_VISIBLE_DEVICES=0,1,2,3
-        NUM_GPUS=4
+        export CUDA_VISIBLE_DEVICES=6,7
+        NUM_GPUS=2
+        ;;
+    "rdp2")
+        export CUDA_VISIBLE_DEVICES=6,7
+        NUM_GPUS=2
         ;;
     "cma")
-        export CUDA_VISIBLE_DEVICES=0
+        export CUDA_VISIBLE_DEVICES=6
         NUM_GPUS=1
         ;;
     "cma_plus")

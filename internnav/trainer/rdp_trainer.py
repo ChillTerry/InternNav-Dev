@@ -66,7 +66,6 @@ class RDPTrainer(BaseTrainer):
             device=self.args.device,
         )
 
-        need_img_extraction = True
         depth_return_x_before_fc = True
 
         batch = {
@@ -77,15 +76,16 @@ class RDPTrainer(BaseTrainer):
             'masks': not_done_masks,
             'add_noise_to_action': True,
             'denoise_action': False,
-            'need_img_extraction': need_img_extraction,  # need img embedding in model
             'depth_return_x_before_fc': depth_return_x_before_fc,
-            'img_mod': self.config.model.image_encoder.rgb.img_mod,
-            'proj': self.config.model.image_encoder.rgb.rgb_proj,
             'process_images': False,  # has processed in dataLoader
             'train_cls_free_guidance': self.config.model.diffusion_policy.use_cls_free_guidance,
             'sample_cls_free_guidance': False,
             'need_txt_extraction': True,
         }
+        if self.config.model.image_encoder != None:
+            batch['img_mod'] = self.config.model.image_encoder.rgb.img_mod
+            batch['proj'] = self.config.model.image_encoder.rgb.rgb_proj
+            batch['need_img_extraction'] = True
 
         (
             noise_pred,

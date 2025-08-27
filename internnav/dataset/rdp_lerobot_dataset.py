@@ -103,7 +103,10 @@ class RDP_LerobotDataset(BaseDataset):
 
         # preprocess images
         self.to_pil = ToPILImage()
-        self.image_processor = _transform(n_px=224)  # copy from clip-long
+        if self.config.model_name == 'rdp2':
+            self.image_processor = _transform(n_px=256)  
+        else:
+            self.image_processor = _transform(n_px=224)  # copy from clip-long
         self.lerobot_as_lmdb = LerobotAsLmdb(self.lerobot_features_dir)
         self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys()
         self.length = len(self.lmdb_keys)

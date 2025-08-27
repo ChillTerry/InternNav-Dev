@@ -25,6 +25,7 @@ import os
 from collections import OrderedDict
 
 from .ham_head import LightHamHead 
+from internnav.configs.model.base_encoders import RGBDEncoder
 
 
 
@@ -710,18 +711,19 @@ def init_weight(module_list, conv_init, norm_layer, bn_eps, bn_momentum, **kwarg
 class RGBDEncoder(nn.Module):
     def __init__(
         self,
+        model_cfg: RGBDEncoder,
         **kwargs,
     ):
         super(RGBDEncoder, self).__init__()
-        self.model_cfg = kwargs.get('model_cfg', None)
+        self.model_cfg = model_cfg
 
-        if self.model_cfg.image_encoder.model_name == "DFormerv2_L":
+        if self.model_cfg.model_name == "DFormerv2_L":
             self.dformerv2 = DFormerv2_L(**kwargs)
             self.channels = [112, 224, 448, 640]
-        elif self.model_cfg.image_encoder.model_name == "DFormerv2_B":
+        elif self.model_cfg.model_name == "DFormerv2_B":
             self.dformerv2 = DFormerv2_B(**kwargs)
             self.channels = [80, 160, 320, 512]
-        elif self.model_cfg.image_encoder.model_name == "DFormerv2_S":
+        elif self.model_cfg.model_name == "DFormerv2_S":
             self.dformerv2 = DFormerv2_S(**kwargs)
             self.channels = [64, 128, 256, 512]
         else:
@@ -730,25 +732,20 @@ class RGBDEncoder(nn.Module):
         self.decode_head = LightHamHead(
             in_channels=self.channels[1:],
             in_index=[1, 2, 3],
-            feature_channels=self.model_cfg.image_encoder.feature_channels,
-            out_channels=self.model_cfg.image_encoder.out_channels,
+            feature_channels=self.model_cfg.feature_channels,
+            out_channels=self.model_cfg.out_channels,
         )
 
-        if self.model_cfg.image_encoder.model_path:
-            self.dformerv2.init_weights(pretrained=self.model_cfg.image_encoder.model_path)
+        if self.model_cfg.model_path:
+            self.dformerv2.init_weights(pretrained=self.model_cfg.model_path)
+        if not self.model_cfg.update_rgb_encoder:
+            for name, param in self.dformerv2.named_parameters():
+                param.requires_grad = False
 
     def forward(self, rgb, modal_x):
-        """Encode images with backbone and decode into a semantic segmentation
-        map of the same size as input."""
         orisize = rgb.shape
-        # print('builder',rgb.shape,modal_x.shape)
-        x = self.backbone(rgb, modal_x)
+        x = self.dformerv2(rgb, modal_x)
         if len(x) == 2:  # if output is (rgb,depth) only use rgb
             x = x[0]
         out = self.decode_head.forward(x)
-        out = F.interpolate(out, size=orisize[-2:], mode="bilinear", align_corners=False)
-        if self.aux_head:
-            aux_fm = self.aux_head(x[0][self.aux_index])
-            aux_fm = F.interpolate(aux_fm, size=orisize[2:], mode="bilinear", align_corners=False)
-            return out, aux_fm
         return out

@@ -23,6 +23,8 @@ from internnav.model import (
     Seq2SeqNet,
     NavDPNet,
     NavDPModelConfig,
+    RDP2ModelConfig,
+    RDP2Net,
 )
 from internnav.model.utils.logger import MyLogger
 from internnav.model.utils.utils import load_dataset
@@ -30,7 +32,8 @@ from internnav.trainer import CMATrainer, RDPTrainer, NavDPTrainer
 from scripts.train.configs import (
     cma_exp_cfg,
     cma_plus_exp_cfg,
-    rdp_exp_cfg,
+    rdp_exp_cfg,    
+    rdp2_exp_cfg,
     seq2seq_exp_cfg,
     seq2seq_plus_exp_cfg,
     navdp_exp_cfg,
@@ -217,7 +220,7 @@ def main(config, model_class, model_config_class):
             )
             collate_fn = cma_collate_fn
 
-        elif config.model_name == 'rdp':
+        elif config.model_name in ['rdp', 'rdp2']:
             policy_trainer = RDPTrainer
             train_dataset = RDP_LerobotDataset(
                 config,
@@ -258,7 +261,7 @@ def main(config, model_class, model_config_class):
             ddp_find_unused_parameters=config.il.ddp_find_unused_parameters,
             ddp_bucket_cap_mb=100,
             torch_compile_mode=None,
-            dataloader_drop_last=True,
+            dataloader_drop_last=True,  
             disable_tqdm=True,
             log_level="info"
         )
@@ -309,6 +312,7 @@ if __name__ == '__main__':
         'cma': [cma_exp_cfg, CMANet, CMAModelConfig],
         'cma_plus': [cma_plus_exp_cfg, CMANet, CMAModelConfig],
         'rdp': [rdp_exp_cfg, RDPNet, RDPModelConfig],
+        'rdp2': [rdp2_exp_cfg, RDP2Net, RDP2ModelConfig],
         'navdp': [navdp_exp_cfg, NavDPNet, NavDPModelConfig],
     }
 

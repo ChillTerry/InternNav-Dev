@@ -4,9 +4,7 @@ from .base_encoders import (
     CrossModalEncoder,
     DiffusionPolicy,
     DistancePredictor,
-    ImageEncoder,
-    ImageEncoderDepth,
-    ImageEncoderRgb,
+    RGBDEncoder,
     ImuEncoder,
     ModelCfg,
     PrevActionEncoder,
@@ -16,8 +14,8 @@ from .base_encoders import (
     TextEncoder,
 )
 
-rdp_cfg = ModelCfg(
-    policy_name='RDP_Policy',
+rdp2_cfg = ModelCfg(
+    policy_name='RDP2_Policy',
     max_step=200,
     learn_angle=True,
     use_iw=False,
@@ -37,9 +35,10 @@ rdp_cfg = ModelCfg(
         eot_token=49407,
         pad_token=0,
     ),
-    image_encoder=ImageEncoder(
+    rgbd_encoder=RGBDEncoder(
         model_name = 'DFormerv2_B',
-        model_path='checkpoints/DFormerv2/DFormerv2/pretrained/DFormerv2_Base_pretrained.pth',
+        model_path='checkpoints/DFormerv2/DFormerv2/pretrained/DFormerv2_Large_pretrained.pth',
+        update_rgb_encoder=False,
         feature_channels=512,
         out_channels=512,
     ),
@@ -160,34 +159,11 @@ rdp_eval_cfg = ModelCfg(
         eot_token=49407,
         pad_token=0,
     ),
-    image_encoder=ImageEncoder(
-        use_stack=False,
-        img_stack_nums=4,
-        dropout=0.1,
-        use_env_drop=True,
-        env_drop=0.3,
-        rgb=ImageEncoderRgb(
-            load_model=True,
-            update_rgb_encoder=False,
-            model_name='clip-long',
-            model_path='checkpoints/clip-long/longclip-B.pt',
-            rgb_proj=False,
-            feature_dim=768,
-            projection_dim=512,
-            img_mod='multi_patches_avg_pooling',
-            multi_patches_num=5,
-        ),
-        depth=ImageEncoderDepth(
-            load_model=True,
-            update_depth_encoder=False,
-            bottleneck='resnet',
-            feature_dim=768,
-            projection_dim=512,
-            cnn_type='VlnResnetDepthEncoder',
-            output_size=128,
-            ddppo_checkpoint='checkpoints/ddppo-models/gibson-4plus-mp3d-train-val-test-resnet50.pth',
-            backbone='resnet50',
-        ),
+    rgbd_encoder=RGBDEncoder(
+        model_name = 'DFormerv2_B',
+        model_path='checkpoints/DFormerv2/DFormerv2/pretrained/DFormerv2_Base_pretrained.pth',
+        feature_channels=512,
+        out_channels=512,
     ),
     cross_modal_encoder=CrossModalEncoder(
         load_model=False,
