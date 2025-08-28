@@ -36,7 +36,7 @@ rdp2_cfg = ModelCfg(
         pad_token=0,
     ),
     rgbd_encoder=RGBDEncoder(
-        model_name = 'DFormerv2_B',
+        model_name = 'DFormerv2_L',
         model_path='checkpoints/DFormerv2/DFormerv2/pretrained/DFormerv2_Large_pretrained.pth',
         update_rgb_encoder=False,
         feature_channels=512,
