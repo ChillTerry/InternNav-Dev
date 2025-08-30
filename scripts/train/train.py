@@ -263,7 +263,7 @@ def main(config, model_class, model_config_class):
             torch_compile_mode=None,
             dataloader_drop_last=True,  
             disable_tqdm=True,
-            log_level="info"
+            logging_dir=config.tensorboard_dir,
         )
 
         # Create the trainer

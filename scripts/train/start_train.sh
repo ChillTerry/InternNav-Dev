@@ -71,6 +71,7 @@ fi
 export TORCH_SHOW_CPP_STACKTRACES=1
 export TORCH_CPP_LOG_LEVEL=INFO
 export NCCL_DEBUG=INFO
+export WANDB_MODE=offline
 
 # Check if model is rdp to use python, otherwise use torchrun
 if [[ "$MODEL" == "navdp" ]]; then
