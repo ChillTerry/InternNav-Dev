@@ -662,8 +662,8 @@ class RDP2Net(PreTrainedModel):
 
         """2. Encoding images"""
         rgb_depth_embeds = self.rgbd_encoder(
-            observations['stack_rgb'],
-            observations['stack_depth'],
+            observations['rgb'],
+            observations['depth'],
         )
 
         """3. Update GRU"""

@@ -138,8 +138,8 @@ rdp2_cfg = ModelCfg(
 )
 
 
-rdp_eval_cfg = ModelCfg(
-    policy_name='RDP_Policy',
+rdp2_eval_cfg = ModelCfg(
+    policy_name='RDP2_Policy',
     max_step=200,
     learn_angle=True,
     use_iw=False,
@@ -160,8 +160,8 @@ rdp_eval_cfg = ModelCfg(
         pad_token=0,
     ),
     rgbd_encoder=RGBDEncoder(
-        model_name = 'DFormerv2_B',
-        model_path='checkpoints/DFormerv2/DFormerv2/pretrained/DFormerv2_Base_pretrained.pth',
+        model_name = 'DFormerv2_L',
+        model_path='checkpoints/DFormerv2/DFormerv2/pretrained/DFormerv2_Large_pretrained.pth',
         feature_channels=512,
         out_channels=512,
     ),

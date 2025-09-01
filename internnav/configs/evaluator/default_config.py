@@ -23,7 +23,7 @@ from internnav.configs.evaluator import (
     SensorCfg,
     TaskCfg,
 )
-from internnav.configs.model import cma_cfg, rdp_cfg, seq2seq_cfg
+from internnav.configs.model import cma_cfg, rdp_cfg, rdp2_cfg, seq2seq_cfg
 from internnav.projects.internutopia_vln_extension.configs.controllers.discrete_controller import (
     DiscreteControllerCfg,
 )
@@ -288,6 +288,8 @@ def get_config(evaluator_cfg: EvalCfg):
         model_settings = cma_cfg.model_dump()
     elif evaluator_cfg.agent.model_name == 'rdp':
         model_settings = rdp_cfg.model_dump()
+    elif evaluator_cfg.agent.model_name == 'rdp2':
+        model_settings = rdp2_cfg.model_dump()
     elif evaluator_cfg.agent.model_name == 'seq2seq':
         model_settings = seq2seq_cfg.model_dump()
     elif evaluator_cfg.agent.model_name == 'internvla_n1':

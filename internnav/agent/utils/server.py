@@ -77,6 +77,7 @@ class AgentServer:
             port=self.port,
             reload=reload,
             reload_dirs=['./internnav/agent/', './internnav/model/'],
+            log_level="debug"
         )
 
 
