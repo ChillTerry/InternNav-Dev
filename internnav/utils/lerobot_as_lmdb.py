@@ -5,32 +5,42 @@ import numpy as np
 import json
 
 class LerobotAsLmdb:
-    def __init__(self, dataset_path):
-        self.dataset_path = dataset_path
+    def __init__(self):
+        pass
     
-    def get_all_keys(self):
+    def get_all_keys(self, dataset_path):
         keys = []
-        for scan in os.listdir(self.dataset_path):
-            scan_path = os.path.join(self.dataset_path, scan)
+        for scan in os.listdir(dataset_path):
+            scan_path = os.path.join(dataset_path, scan)
             if not os.path.isdir(scan_path):
                 continue
             for trajectory in os.listdir(scan_path):
                 trajectory_path = os.path.join(scan_path, trajectory)
                 if not os.path.isdir(trajectory_path):
                     continue
-                keys.append(f"{scan}_{trajectory}")
+                keys.append((f"{scan}_{trajectory}", dataset_path))
         return keys
     
-    def get_data_by_key(self, key):
-        scan = key.split('_')[0]
-        trajectory = key.split('_')[1]
-        trajectory_path = os.path.join(self.dataset_path, scan, trajectory)
+    def get_data_by_key(self, key, dataset_path):
+        parts = key.split('_')
+        if "r2r" in dataset_path:
+            scan = parts[0]
+            trajectory = parts[1]
+            trajectory_path = os.path.join(dataset_path, scan, trajectory)
+            rgb_path = os.path.join(trajectory_path,"videos/chunk-000/observation.images.rgb/rgb.npy")
+            depth_path = os.path.join(trajectory_path,"videos/chunk-000/observation.images.depth/depth.npy")
+        elif "interiornav" in dataset_path:
+            scan = f"{parts[0]}_{parts[1]}"
+            trajectory = parts[2]
+            trajectory_path = os.path.join(dataset_path, scan, trajectory)
+            rgb_path = os.path.join(trajectory_path,"videos/chunk-000/observation.images.rgb/rgb.npy")
+            depth_path = os.path.join(trajectory_path,"videos/chunk-000/observation.images.depth/depth.npy")
         parquet_path = os.path.join(trajectory_path, "data/chunk-000/episode_000000.parquet")
         json_path = os.path.join(trajectory_path, "meta/episodes.jsonl")
-        rgb_path = os.path.join(trajectory_path,"videos/chunk-000/observation.images.rgb/rgb.npy")
-        depth_path = os.path.join(trajectory_path,"videos/chunk-000/observation.images.depth/depth.npy")
-        
+
         df = pd.read_parquet(parquet_path)
+        # for i, column in enumerate(df.columns, 1):
+        #     print(f"{i:2d}. {column}")
         data = {}
         data['episode_data']={}
         data['episode_data']['camera_info']={}

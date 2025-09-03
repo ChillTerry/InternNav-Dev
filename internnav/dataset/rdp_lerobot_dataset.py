@@ -113,8 +113,12 @@ class RDP_LerobotDataset(BaseDataset):
             self.image_processor = _transform(n_px=256)  
         else:
             self.image_processor = _transform(n_px=224)  # copy from clip-long
-        self.lerobot_as_lmdb = LerobotAsLmdb(self.lerobot_features_dir)
-        self.lmdb_keys = self.lerobot_as_lmdb.get_all_keys()
+
+        self.lmdb_keys = []
+        for lerobot_features_dir in self.lerobot_features_dir:
+            self.lerobot_as_lmdb = LerobotAsLmdb()
+            self.lmdb_keys.extend(self.lerobot_as_lmdb.get_all_keys(lerobot_features_dir))
+
         self.length = len(self.lmdb_keys)
 
         self.start = 0
@@ -151,8 +155,8 @@ class RDP_LerobotDataset(BaseDataset):
                 if len(self.load_ordering) == 0:
                     break
 
-                key = self.lmdb_keys[self.load_ordering.pop()]
-                data_to_load = self.lerobot_as_lmdb.get_data_by_key(key)
+                key, dataset_path = self.lmdb_keys[self.load_ordering.pop()]
+                data_to_load = self.lerobot_as_lmdb.get_data_by_key(key, dataset_path)
                 try:
                     data = data_to_load['episode_data']
                 except KeyError:
