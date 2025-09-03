@@ -62,6 +62,8 @@ def _transform(n_px):
         [
             Resize(n_px, interpolation=BICUBIC),
             CenterCrop(n_px),
+            _convert_image_to_rgb,
+            ToTensor(),
             Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
         ]
     )
@@ -107,6 +109,7 @@ class Rdp2Agent(Agent):
 
         # image_processor
         self.image_processor = _transform(n_px=256)
+        self.to_pil = ToPILImage()
 
         if self.use_clip_encoders:
             if self._model_settings.text_encoder.type == 'roberta':
@@ -231,6 +234,7 @@ class Rdp2Agent(Agent):
         batch_stack_depth = []
         for image in batch['rgb']:
             image = image.permute(2, 0, 1).to(torch.float32)
+            image_device = image.device
             # from torchvision.utils import save_image
             # def save_tensor_as_image(tensor, filename):
             #     tensor = tensor.detach().clone().float()
@@ -239,8 +243,8 @@ class Rdp2Agent(Agent):
             #         tensor = (tensor - min_val) / (max_val - min_val + 1e-5)
             #     save_image(tensor, filename)
             # save_tensor_as_image(image, "rgb.png")
-            image = self.image_processor(image)
-            batch_stack_rgb.append(image)
+            image = self.image_processor(self.to_pil(image))
+            batch_stack_rgb.append(image.to(image_device))
         for image in batch['depth']:
             image = image.permute(2, 0, 1).to(torch.float32)
             batch_stack_depth.append(image)
