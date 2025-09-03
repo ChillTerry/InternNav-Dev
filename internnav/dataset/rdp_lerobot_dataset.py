@@ -24,11 +24,17 @@ except ImportError:
     BICUBIC = Image.BICUBIC
 
 from internnav.dataset.base import BaseDataset, ObservationsDict, _block_shuffle
-from internnav.evaluator.utils.common import norm_depth
+# from internnav.evaluator.utils.common import norm_depth
 from internnav.model.basemodel.LongCLIP.model import longclip
 from internnav.model.basemodel.rdp.utils import get_delta, normalize_data, to_local_coords
 from internnav.model.utils.feature_extract import extract_instruction_tokens
 from internnav.utils.lerobot_as_lmdb import LerobotAsLmdb
+
+
+def norm_depth(depth_info, min_depth=0, max_depth=10):
+    depth_info[depth_info > max_depth] = max_depth
+    depth_info = (depth_info - min_depth) / (max_depth - min_depth)
+    return depth_info
 
 
 def _convert_image_to_rgb(image):
