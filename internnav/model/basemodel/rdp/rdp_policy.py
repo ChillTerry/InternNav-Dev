@@ -10,6 +10,7 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from gym import spaces
 from torch import Tensor
 from transformers import PretrainedConfig, PreTrainedModel
+from transformers import RobertaConfig
 
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.eval import EvalCfg
@@ -160,7 +161,7 @@ class RDPNet(PreTrainedModel):
         )
 
         # Init the cross-modal fusion network
-        bert_config = PretrainedConfig.from_pretrained('roberta-base')
+        bert_config = RobertaConfig.from_pretrained('roberta-base')
         cross_modal_config = copy.deepcopy(bert_config)
         try:
             for k, v in self.model_config.cross_modal_encoder.dict().items():
