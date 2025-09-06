@@ -118,7 +118,8 @@ class RDP_LerobotDataset(BaseDataset):
         for lerobot_features_dir in self.lerobot_features_dir:
             self.lerobot_as_lmdb = LerobotAsLmdb()
             self.lmdb_keys.extend(self.lerobot_as_lmdb.get_all_keys(lerobot_features_dir))
-
+        random.shuffle(self.lmdb_keys)
+        
         self.length = len(self.lmdb_keys)
 
         self.start = 0
