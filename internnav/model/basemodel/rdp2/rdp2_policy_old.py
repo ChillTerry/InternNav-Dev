@@ -10,7 +10,6 @@ from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from gym import spaces
 from torch import Tensor
 from transformers import PretrainedConfig, PreTrainedModel
-from transformers import RobertaConfig
 
 from internnav.configs.model.base_encoders import ModelCfg
 from internnav.configs.trainer.eval import EvalCfg
@@ -21,11 +20,12 @@ from ...basemodel.diffusion_policy_modified.transformer_for_diffusion_modified i
 )
 from ...encoder import (
     DistanceNetwork,
-    ImageEncoder,
     InstructionLongCLIPEncoder,
     LanguageEncoder,
     PositionalEncoding,
     VisionLanguageEncoder,
+    ImageEncoder,
+    RGBDEncoder
 )
 from ...encoder.rnn_encoder import build_rnn_state_encoder
 from ...utils.utils import get_action
@@ -154,13 +154,11 @@ class RDP2Net(PreTrainedModel):
             self.instruction_encoder = LanguageEncoder(text_encoder_config)
 
         # Init the RGB & depth encoder
-        self.image_encoder = ImageEncoder(
-            self.model_config,
-            self.model_config.image_encoder,
-            self.observation_space,
-        )
+        self.rgbd_encoder = RGBDEncoder(model_cfg=self.model_config.rgbd_encoder)
+        concat_size = self.model_config.rgbd_encoder.out_channels
+
         # Init the cross-modal fusion network
-        bert_config = RobertaConfig.from_pretrained('roberta-base')
+        bert_config = PretrainedConfig.from_pretrained('roberta-base')
         cross_modal_config = copy.deepcopy(bert_config)
         try:
             for k, v in self.model_config.cross_modal_encoder.dict().items():
@@ -184,17 +182,6 @@ class RDP2Net(PreTrainedModel):
             self.model_config.prev_action_encoder.encoding_size,
             self.model_config.len_traj_act,
         )
-
-        if self.model_config.image_encoder.rgb.img_mod == 'cls':
-            concat_size = self.model_config.image_encoder.rgb.projection_dim
-        elif self.model_config.image_encoder.rgb.img_mod == 'multi_patches_avg_pooling':
-            if self.model_config.state_encoder.rgb_depth_embed_method == 'flat':
-                concat_size = (
-                    self.model_config.image_encoder.rgb.projection_dim
-                    * self.model_config.image_encoder.rgb.multi_patches_num
-                )
-            elif self.model_config.state_encoder.rgb_depth_embed_method == 'first':
-                concat_size = self.model_config.image_encoder.rgb.projection_dim
 
         # Init the IMU encoder
         if self.model_config.imu_encoder.use:
@@ -226,11 +213,7 @@ class RDP2Net(PreTrainedModel):
         if self.model_config.diffusion_policy.type == 'transformer':
             self.use_cls_free_guidance = self.model_config.diffusion_policy.use_cls_free_guidance
             # define the length of conditions
-            if self.model_config.image_encoder.rgb.img_mod == 'cls':
-                vis_length = 1
-            elif self.model_config.image_encoder.rgb.img_mod == 'multi_patches_avg_pooling':
-                vis_length = self.model_config.image_encoder.rgb.multi_patches_num
-
+            vis_length = 1
             txt_length = 1
             rnn_length = 1
             prev_act_length = self.model_config.len_traj_act
@@ -390,6 +373,11 @@ class RDP2Net(PreTrainedModel):
         latest_prev_action_embeds = prev_action_embeds[:, 0]
 
         """3. Encoding images"""
+        rgb_depth_embeds = self.rgbd_encoder(
+            observations['rgb'],
+            observations['depth'],
+        )
+
         rgb_depth_embeds = self.image_encoder(
             observations['stack_rgb'],
             observations['stack_depth'],
@@ -397,14 +385,7 @@ class RDP2Net(PreTrainedModel):
         )
 
         """4. Update GRU"""
-        if self.model_config.image_encoder.rgb.img_mod == 'multi_patches_avg_pooling':
-            if self.model_config.state_encoder.rgb_depth_embed_method == 'flat':
-                rgb_depth_for_rnn = torch.flatten(rgb_depth_embeds, 1)  # [bs, 5, h_dim] -> [bs, 5*h_dim]
-            elif self.model_config.state_encoder.rgb_depth_embed_method == 'first':
-                rgb_depth_for_rnn = rgb_depth_embeds[:, 0, :]
-        else:
-            rgb_depth_for_rnn = rgb_depth_embeds.squeeze(1)
-        concat_embeds = torch.cat([rgb_depth_for_rnn, latest_prev_action_embeds], dim=1)
+        concat_embeds = torch.cat([rgb_depth_embeds, latest_prev_action_embeds], dim=1)
         if self.model_config.imu_encoder.use:
             imu_embeds = self.imu_linear(observations['imu'])
             imu_dp_embeds = self.imu_linear_dp(observations['imu'])
@@ -420,15 +401,9 @@ class RDP2Net(PreTrainedModel):
             state = self.state_dropout(state)
 
         """6. Encoding vision-and-language"""
-        if (
-            not self.model_config.image_encoder.use_stack
-            and self.model_config.image_encoder.rgb.img_mod != 'multi_patches_avg_pooling'
-        ):
-            do_self_attn = False
-        else:
-            do_self_attn = True
-
         # 6.1 Current img features combine with the text features
+        if rgb_depth_embeds.dim() == 2:
+            rgb_depth_embeds = rgb_depth_embeds.unsqueeze(dim=1)
         rgb_depth_his_embeds = torch.cat((rgb_depth_embeds, state), dim=1)
         try:
             img_txt_embeds, img_txt_attn_probs = self.img_txt_cross_encoder(
@@ -437,7 +412,7 @@ class RDP2Net(PreTrainedModel):
                 q_masks=masks,
                 kv_masks=txt_masks,
                 output_attentions=True,
-                do_self_attn=do_self_attn,
+                do_self_attn=True,
             )
         except Exception as e:
             print(e)
@@ -447,7 +422,7 @@ class RDP2Net(PreTrainedModel):
                 q_masks=masks,
                 kv_masks=txt_masks,
                 output_attentions=True,
-                do_self_attn=do_self_attn,
+                do_self_attn=True,
             )
         img_txt_attn_probs = img_txt_attn_probs[:, 0, :]
 
@@ -459,7 +434,7 @@ class RDP2Net(PreTrainedModel):
                 q_masks=txt_masks,
                 kv_masks=None,
                 output_attentions=True,
-                do_self_attn=do_self_attn,
+                do_self_attn=True,
             )
             fused_update_txt_embeds = txt_img_embeds
         else:
@@ -693,21 +668,13 @@ class RDP2Net(PreTrainedModel):
         latest_prev_action_embeds = prev_action_embeds[:, 0]
 
         """2. Encoding images"""
-        rgb_depth_embeds = self.image_encoder(
-            observations['stack_rgb'],
-            observations['stack_depth'],
-            img_mod=self.model_config.image_encoder.rgb.img_mod,
+        rgb_depth_embeds = self.rgbd_encoder(
+            observations['rgb'],
+            observations['depth'],
         )
 
         """3. Update GRU"""
-        if self.model_config.image_encoder.rgb.img_mod == 'multi_patches_avg_pooling':
-            if self.model_config.state_encoder.rgb_depth_embed_method == 'flat':
-                rgb_depth_for_rnn = torch.flatten(rgb_depth_embeds, 1)
-            elif self.model_config.state_encoder.rgb_depth_embed_method == 'first':
-                rgb_depth_for_rnn = rgb_depth_embeds[:, 0, :]
-        else:
-            rgb_depth_for_rnn = rgb_depth_embeds.squeeze(1)
-        concat_embeds = torch.cat([rgb_depth_for_rnn, latest_prev_action_embeds], dim=1)
+        concat_embeds = torch.cat([rgb_depth_embeds, latest_prev_action_embeds], dim=1)
         if self.model_config.imu_encoder.use:
             imu_embeds = self.imu_linear(observations['imu'])
 
@@ -722,24 +689,12 @@ class RDP2Net(PreTrainedModel):
         self,
         rgb_inputs,
         depth_inputs,
-        img_mod,
-        depth_return_x_before_fc=False,
-        proj=True,
-        process_images=False,
-        need_rgb_extraction=True,
     ):
-        if process_images:
-            rgb_inputs = self.image_encoder.process_image(rgb_inputs)
-        if need_rgb_extraction:
-            rgb_embeds = self.image_encoder.embed_image(rgb_inputs, img_mod=img_mod, proj=proj).squeeze(1)
-        else:
-            rgb_embeds = rgb_inputs
-
-        depth_embeds = self.image_encoder.embed_depth(
-            {'rgb': rgb_inputs, 'depth': depth_inputs}, 
-            return_x_before_fc=depth_return_x_before_fc,
-        ).squeeze(1)
-        return rgb_embeds, depth_embeds
+        rgb_depth_embeds = self.rgbd_encoder(
+            rgb_inputs,
+            depth_inputs,
+        )
+        return rgb_depth_embeds
 
     def parse_action(
         self,

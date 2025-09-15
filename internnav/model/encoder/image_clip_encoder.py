@@ -7,8 +7,11 @@ from torchvision.transforms import ToPILImage
 from transformers import CLIPImageProcessor, CLIPVisionConfig, CLIPVisionModel
 
 from internnav.configs.model.base_encoders import ImageEncoder as ImageEncoderCfg
+from internnav.configs.model.base_encoders import ImageEncoderDepthDFormer as ImageEncoderDepthDFormerCfg
+from internnav.configs.model.base_encoders import ImageEncoderDepthResnet as ImageEncoderDepthResnetCfg
 
 from ..basemodel.LongCLIP.model import longclip
+from .DFormerv2 import RGBDEncoder
 from . import resnet_encoders
 from .bert_backbone import PositionalEncoding
 import torch.nn.functional as F
@@ -49,7 +52,9 @@ class ImageEncoder(torch.nn.Module):
         self.image_fc = torch.nn.Linear(self.image_feature_dim, self.image_projection_dim, bias=False)
 
         # Depth model
-        if config.depth.bottleneck == 'resnet':
+        if isinstance(config.depth, ImageEncoderDepthDFormerCfg):
+            self.depth_encoder = RGBDEncoder(config.depth)
+        elif isinstance(config.depth, ImageEncoderDepthResnetCfg):
             self.depth_encoder = getattr(resnet_encoders, config.depth.cnn_type)(
                 observation_space,
                 output_size=config.depth.output_size,
@@ -67,6 +72,11 @@ class ImageEncoder(torch.nn.Module):
                 ),
                 nn.ReLU(True),
             )
+            # depth linear
+            self.depth_learnable_linear = nn.Linear(config.depth.feature_dim, config.depth.projection_dim)
+            self.depth_ln = nn.LayerNorm(config.depth.projection_dim)
+        else:
+            raise NotImplementedError
 
         # position embedding
         if config.rgb.img_mod == 'multi_patches_avg_pooling':
@@ -79,11 +89,10 @@ class ImageEncoder(torch.nn.Module):
 
         self.layernorm = nn.LayerNorm(config.rgb.projection_dim)
 
-        # image & depth linear
+        # image linear
         self.img_learnable_linear = nn.Linear(config.rgb.feature_dim, config.rgb.projection_dim)
         self.img_ln = nn.LayerNorm(config.rgb.projection_dim)
-        self.depth_learnable_linear = nn.Linear(config.depth.feature_dim, config.depth.projection_dim)
-        self.depth_ln = nn.LayerNorm(config.depth.projection_dim)
+
 
         # Dropout layers
         self.env_drop = nn.Dropout(config.env_drop)
@@ -189,6 +198,8 @@ class ImageEncoder(torch.nn.Module):
         except Exception:
             data_type = self.image_transformer.transformer.resblocks[0].mlp.c_fc.weight.dtype
         x = batch_subset.type(data_type)
+        if x.shape[-1] != 224:
+            x = F.interpolate(x, size=(224, 224), mode='bilinear')
 
         x = visual.conv1(x)  # shape = [*, width, grid, grid] # [bs, 3, 224, 224]
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
@@ -223,6 +234,8 @@ class ImageEncoder(torch.nn.Module):
         except Exception:
             data_type = self.image_transformer.transformer.resblocks[0].mlp.c_fc.weight.dtype
         x = batch_subset.type(data_type)
+        if x.shape[-1] != 224:
+            x = F.interpolate(x, size=(224, 224), mode='bilinear')
 
         """Combine multiple patches into 4 patches and return the full and the multiple patches features"""
         x = visual.conv1(x)  # shape = [*, width, grid, grid] # [bs, 3, 224, 224]
@@ -307,12 +320,18 @@ class ImageEncoder(torch.nn.Module):
         return outputs
 
     def embed_depth(self, input, return_x_before_fc=False):
+        rgb = input['rgb']
+        depth = input['depth']
         if self.analysis_time:
             start_time = time.time()
-        if self.config.depth.bottleneck == 'resnet':
-            outputs = self.embed_depth_resnet(input, return_x_before_fc=return_x_before_fc)
+        if isinstance(self.config.depth, ImageEncoderDepthDFormerCfg):
+            outputs = self.embed_depth_dformer(rgb, depth)
+        elif isinstance(self.config.depth, ImageEncoderDepthResnetCfg):
+            outputs = self.embed_depth_resnet(depth, return_x_before_fc=return_x_before_fc)
             if return_x_before_fc:
                 outputs = outputs[0]  # [bs, 128, 4, 4]. Otherwise, [bs, 192, 4, 4]
+        else:
+            raise NotImplementedError
         if self.analysis_time:
             end_time = time.time()
             print(f'MODEL depth embedding time: {end_time - start_time}')
@@ -348,6 +367,10 @@ class ImageEncoder(torch.nn.Module):
         else:
             return outputs
 
+    def embed_depth_dformer(self, rgb, depth):
+        outputs = self.depth_encoder(rgb, depth)
+        return outputs
+
     def init_param(self):
         pass
 
@@ -370,7 +393,7 @@ class ImageEncoder(torch.nn.Module):
             depth_inputs = self.process_depth(depth_inputs)
         if do_embeds:
             image_embeddings = self.embed_image(rgb_inputs, fc=fc)
-            depth_embeddings = self.embed_depth(depth_inputs, fc=fc)
+            depth_embeddings = self.embed_depth({'rgb': rgb_inputs, 'depth': depth_inputs}, fc=fc)
         else:
             image_embeddings = rgb_inputs
             depth_embeddings = depth_inputs
@@ -384,14 +407,16 @@ class ImageEncoder(torch.nn.Module):
             image_embeddings = self.env_drop(image_embeddings)
             # depth_embeddings = self.env_drop(depth_embeddings)
 
-        if self.config.depth.bottleneck == 'resnet':
-            depth_resnet_inputs = {'depth_features': depth_embeddings}
-            depth_embeds = self.depth_encoder(depth_resnet_inputs)  # [bs,128,4,4]
-            depth_embeds = torch.flatten(depth_embeds, 2)  # [bs, 192, 16]
-            depth_embeds = self.depth_linear(depth_embeds)
+        if isinstance(self.config.depth, ImageEncoderDepthResnetCfg):
+            if self.config.depth.bottleneck == 'resnet':
+                depth_resnet_inputs = {'depth_features': depth_embeddings}
+                depth_embeds = self.depth_encoder(depth_resnet_inputs)  # [bs,128,4,4]
+                depth_embeds = torch.flatten(depth_embeds, 2)  # [bs, 192, 16]
+                depth_embeds = self.depth_linear(depth_embeds)
+            depth_map_embeds = self.dropout(self.depth_learnable_linear(depth_embeds))
 
+        depth_map_embeds = depth_embeddings
         image_map_embeds = self.dropout(self.img_learnable_linear(image_embeddings))
-        depth_map_embeds = self.dropout(self.depth_learnable_linear(depth_embeds))
 
         if img_mod == 'cls':
             img_depth_embeds = image_map_embeds + depth_map_embeds

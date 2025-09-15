@@ -5,7 +5,7 @@ from .base_encoders import (
     DiffusionPolicy,
     DistancePredictor,
     ImageEncoder,
-    ImageEncoderDepth,
+    ImageEncoderDepthResnet,
     ImageEncoderRgb,
     ImuEncoder,
     ModelCfg,
@@ -54,7 +54,7 @@ rdp_cfg = ModelCfg(
             img_mod='multi_patches_avg_pooling',
             multi_patches_num=5,
         ),
-        depth=ImageEncoderDepth(
+        depth=ImageEncoderDepthResnet(
             load_model=True,
             update_depth_encoder=False,
             bottleneck='resnet',
@@ -200,7 +200,7 @@ rdp_eval_cfg = ModelCfg(
             img_mod='multi_patches_avg_pooling',
             multi_patches_num=5,
         ),
-        depth=ImageEncoderDepth(
+        depth=ImageEncoderDepthResnet(
             load_model=True,
             update_depth_encoder=False,
             bottleneck='resnet',

@@ -25,7 +25,7 @@ import os
 from collections import OrderedDict
 
 from .ham_head import LightHamHead 
-from internnav.configs.model.base_encoders import RGBDEncoder
+from internnav.configs.model.base_encoders import ImageEncoderDepthDFormer
 
 
 
@@ -711,7 +711,7 @@ def init_weight(module_list, conv_init, norm_layer, bn_eps, bn_momentum, **kwarg
 class RGBDEncoder(nn.Module):
     def __init__(
         self,
-        model_cfg: RGBDEncoder,
+        model_cfg: ImageEncoderDepthDFormer,
         **kwargs,
     ):
         super(RGBDEncoder, self).__init__()

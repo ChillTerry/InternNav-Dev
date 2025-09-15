@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -33,7 +33,7 @@ class ImageEncoderRgb(BaseModel, extra='allow'):
     multi_patches_num: Optional[int]
 
 
-class ImageEncoderDepth(BaseModel, extra='allow'):
+class ImageEncoderDepthResnet(BaseModel, extra='allow'):
     load_model: Optional[bool]
     update_depth_encoder: Optional[bool]
     bottleneck: Optional[str]
@@ -44,6 +44,12 @@ class ImageEncoderDepth(BaseModel, extra='allow'):
     ddppo_checkpoint: Optional[str]
     backbone: Optional[str]
 
+class ImageEncoderDepthDFormer(BaseModel, extra='allow'):
+    model_name: Optional[str]
+    model_path: Optional[str]
+    feature_channels: Optional[int]
+    out_channels: Optional[int]
+
 
 class ImageEncoder(BaseModel, extra='allow'):
     use_stack: Optional[bool]
@@ -51,14 +57,7 @@ class ImageEncoder(BaseModel, extra='allow'):
     use_env_drop: Optional[bool]
     env_drop: Optional[float]
     rgb: Optional[ImageEncoderRgb] = None
-    depth: Optional[ImageEncoderDepth] = None
-
-
-class RGBDEncoder(BaseModel, extra='allow'):
-    model_name: Optional[str]
-    model_path: Optional[str]
-    feature_channels: Optional[int]
-    out_channels: Optional[int]
+    depth: Optional[Union[ImageEncoderDepthResnet, ImageEncoderDepthDFormer]] = None
 
 
 class CrossModalEncoder(BaseModel, extra='allow'):
@@ -196,7 +195,6 @@ class ModelCfg(BaseModel, extra='allow'):
     len_traj_act: Optional[int] = None
     text_encoder: Optional[TextEncoder] = None
     image_encoder: Optional[ImageEncoder] = None
-    rgbd_encoder: Optional[RGBDEncoder] = None
     cross_modal_encoder: Optional[CrossModalEncoder] = None
     state_encoder: Optional[StateEncoder]
     progress_monitor: Optional[ProgressMonitor] = None
