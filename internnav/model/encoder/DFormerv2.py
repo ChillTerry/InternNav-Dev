@@ -738,9 +738,13 @@ class RGBDEncoder(nn.Module):
 
         if self.model_cfg.model_path:
             self.dformerv2.init_weights(pretrained=self.model_cfg.model_path)
-        if not self.model_cfg.update_rgb_encoder:
-            for name, param in self.dformerv2.named_parameters():
+
+        for name, param in self.dformerv2.named_parameters():
+            param.requires_grad = False
+        if not self.model_cfg.update_depth_encoder:
+            for name, param in self.decode_head.named_parameters():
                 param.requires_grad = False
+
 
     def forward(self, rgb, modal_x):
         orisize = rgb.shape

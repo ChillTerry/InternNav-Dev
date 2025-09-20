@@ -41,14 +41,14 @@ def _convert_image_to_rgb(image):
     return image.convert('RGB')
 
 
-def _transform(n_px):
+def _transform(n_px, mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711)):
     return Compose(
         [
             Resize(n_px, interpolation=BICUBIC),
             CenterCrop(n_px),
             _convert_image_to_rgb,
             ToTensor(),
-            Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+            Normalize(mean, std),
         ]
     )
 
@@ -113,6 +113,7 @@ class RDP_LerobotDataset(BaseDataset):
             self.image_processor = _transform(n_px=256)  
         else:
             self.image_processor = _transform(n_px=224)  # copy from clip-long
+        self.depth_processor = _transform(n_px=256, mean=[0.48, 0.48, 0.48], std=[0.28, 0.28, 0.28])  
 
         self.lmdb_keys = []
         for lerobot_features_dir in self.lerobot_features_dir:
@@ -276,6 +277,12 @@ class RDP_LerobotDataset(BaseDataset):
                     if len(depth_shape) == 2:
                         # [256, 256] -> [256, 256, 1]
                         item_obs['depth'] = torch.unsqueeze(item_obs['depth'], dim=-1)
+                    # if self.config.model_name == 'rdp2':
+                    #     process_depths = []
+                    #     for depth in item_obs['depth']:
+                    #         depth = depth.permute(2, 0, 1)  # H,W,C -> C,H,W
+                    #         process_depths.append(self.depth_processor(self.to_pil(depth)))
+                    #     item_obs['depth'] = torch.stack(process_depths)  # [T, 3, 256, 256]
 
                 if self.config.model.imu_encoder.use:
                     item_obs['imu'] = torch.zeros((total_steps, self.config.model.imu_encoder.input_size))

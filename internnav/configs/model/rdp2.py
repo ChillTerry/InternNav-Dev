@@ -57,7 +57,7 @@ rdp2_cfg = ModelCfg(
         depth=ImageEncoderDepthDFormer(
             model_name = 'DFormerv2_L',
             model_path='checkpoints/DFormerv2/DFormerv2/pretrained/DFormerv2_Large_pretrained.pth',
-            update_rgb_encoder=False,
+            update_depth_encoder=True,
             feature_channels=512,
             out_channels=512,
         ),

@@ -4,6 +4,7 @@ import time
 import numpy as np
 import torch
 from gym import spaces
+
 from PIL import Image
 from torchvision.transforms import (
     CenterCrop,
@@ -20,7 +21,6 @@ try:
     BICUBIC = InterpolationMode.BICUBIC
 except ImportError:
     BICUBIC = Image.BICUBIC
-
 
 from internnav.agent.base import Agent
 from internnav.configs.agent import AgentCfg
@@ -45,14 +45,6 @@ from internnav.model.utils.feature_extract import (
 from internnav.utils import common_log_util
 from internnav.utils.common_log_util import common_logger as log
 
-
-def set_random_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
 def _convert_image_to_rgb(image):
     return image.convert('RGB')
 
@@ -67,6 +59,12 @@ def _transform(n_px):
             Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
         ]
     )
+
+def set_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 
 @Agent.register('rdp2')
@@ -87,6 +85,7 @@ class Rdp2Agent(Agent):
         proc_num = getattr(self._model_settings, 'proc_num', 1)
         self.device = torch.device('cuda', 0)
 
+        print(f"_model_settings: {self._model_settings}")
         policy = get_policy(self._model_settings.policy_name)
         self.policy = policy.from_pretrained(
             config.ckpt_path,
@@ -101,15 +100,16 @@ class Rdp2Agent(Agent):
 
         self._first_step = np.array([True] * self._env_nums)
 
+        # image processor
+        self.to_pil = ToPILImage()
+        self.image_processor = _transform(n_px=256)  
+        self.depth_processor = _transform(n_px=256)  
+
         # instruction_encoder
         self.use_clip_encoders = True
         self.use_bert = False
         self.bert_tokenizer = None
         self.is_clip_long = False
-
-        # image_processor
-        self.image_processor = _transform(n_px=256)
-        self.to_pil = ToPILImage()
 
         if self.use_clip_encoders:
             if self._model_settings.text_encoder.type == 'roberta':
@@ -229,32 +229,69 @@ class Rdp2Agent(Agent):
                 prev_act_delta = torch.from_numpy(map_action_to_2d(action_deltas)).to(self.device)
                 self._prev_actions[idx] = prev_act_delta
 
-    def _extract_image_features(self, batch):
-        batch_stack_rgb = []
-        batch_stack_depth = []
-        for image in batch['rgb']:
-            image = image.permute(2, 0, 1).to(torch.float32)
-            image_device = image.device
-            # from torchvision.utils import save_image
-            # def save_tensor_as_image(tensor, filename):
-            #     tensor = tensor.detach().clone().float()
-            #     min_val, max_val = tensor.min(), tensor.max()
-            #     if max_val > 1.0 or min_val < 0.0:
-            #         tensor = (tensor - min_val) / (max_val - min_val + 1e-5)
-            #     save_image(tensor, filename)
-            # save_tensor_as_image(image, "rgb.png")
-            image = self.image_processor(self.to_pil(image))
-            batch_stack_rgb.append(image.to(image_device))
-        for image in batch['depth']:
-            image = image.permute(2, 0, 1).to(torch.float32)
-            batch_stack_depth.append(image)
-        batch['rgb'] = torch.stack(batch_stack_rgb)
-        batch['depth'] = torch.stack(batch_stack_depth)
-        return batch
-
     @property
     def _need_reset(self):
         return (len(self.action_cache[0]) == 0 and len(self._reset_ls) > 0) or (len(self._reset_ls) >= self._env_nums)
+
+    def _extract_image_features(
+        self,
+        policy,
+        batch,
+        img_mod,
+        world_size=1,
+        proj=True,
+        net_device=None,
+        need_rgb_extraction=True,
+    ):
+        device = batch['globalgps'].device
+        bs = batch['globalgps'].shape[0]
+
+        if device.type == 'cpu' and net_device is not None:
+            device = net_device
+
+        if world_size > 1:
+            net = policy.module
+        else:
+            net = policy
+
+        rgbs = batch['rgb'].to(device)
+        depths = batch['depth'].to(device)
+
+        process_images = []
+        for image in rgbs:
+            image = image.permute(2, 0, 1)  # H,W,C -> C,H,W
+            process_images.append(self.image_processor(self.to_pil(image)))
+        rgb_feat = torch.stack(process_images)  # [T, 3, 224, 224]
+        rgb_feat = rgb_feat.to(device)
+    
+        depth_shape = depths[0].shape
+        if len(depth_shape) == 2:
+            # [256, 256] -> [256, 256, 1]
+            depths = torch.unsqueeze(depths, dim=-1)
+        depth_feat = depths
+        # process_depths = []
+        # for depth in depths:
+        #     depth = depth.permute(2, 0, 1)  # H,W,C -> C,H,W
+        #     process_depths.append(self.depth_processor(self.to_pil(depth)))
+        # depth_feat = torch.stack(process_depths)  # [T, 3, 256, 256]
+        depth_feat = depth_feat.to(device)
+
+        batch_inputs = {
+            'mode': 'img_embedding',
+            'rgb_inputs': rgb_feat,
+            'depth_inputs': depth_feat,
+            'img_mod': img_mod,
+            'proj': proj,
+            'process_images': False,
+            'need_rgb_extraction': need_rgb_extraction,
+        }
+        rgb_features, depth_features = policy(batch_inputs)
+        rgb_features = rgb_features.type(torch.float32)
+        depth_features = depth_features.type(torch.float32)
+
+        batch['stack_rgb'] = rgb_features.to(device)
+        batch['stack_depth'] = depth_features.to(device)
+        return batch
 
     def _process_obs(self, obs):
         # transfer globalyaw
@@ -282,7 +319,14 @@ class Rdp2Agent(Agent):
 
         self._cal_prev_actions()  # update prev_actions
 
-        batch = self._extract_image_features(batch)
+        batch = self._extract_image_features(
+            self.policy,
+            batch,
+            img_mod=self._model_settings.image_encoder.rgb.img_mod,
+            world_size=1,
+            proj=self._model_settings.image_encoder.rgb.rgb_proj,
+            need_rgb_extraction=True,
+        )
 
         batch['steps'] = self.steps
 
