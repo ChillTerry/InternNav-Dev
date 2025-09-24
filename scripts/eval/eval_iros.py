@@ -1,5 +1,5 @@
 import sys
-
+sys.path.append("/root/InternNav/internnav/model/basemodel")
 sys.path.append('.')
 
 import argparse

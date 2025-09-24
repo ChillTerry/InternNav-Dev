@@ -10,8 +10,10 @@ from internnav.configs.evaluator import (
 eval_cfg = EvalCfg(
     agent=AgentCfg(
         server_port=8087,
-        model_name='rdp',
-        ckpt_path='checkpoints/r2r/fine_tuned/rdp',
+        # model_name='rdp',
+        # ckpt_path='checkpoints/r2r/fine_tuned/rdp',
+        model_name='streamvln',
+        ckpt_path='checkpoints/streamvln-model/',
         model_settings={},
     ),
     env=EnvCfg(

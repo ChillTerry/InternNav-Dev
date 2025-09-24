@@ -23,7 +23,7 @@ from internnav.configs.evaluator import (
     SensorCfg,
     TaskCfg,
 )
-from internnav.configs.model import cma_cfg, rdp_cfg, seq2seq_cfg
+from internnav.configs.model import cma_cfg, rdp_cfg, seq2seq_cfg, streamvln_cfg
 from internnav.projects.internutopia_vln_extension.configs.controllers.discrete_controller import (
     DiscreteControllerCfg,
 )
@@ -292,6 +292,8 @@ def get_config(evaluator_cfg: EvalCfg):
         model_settings = seq2seq_cfg.model_dump()
     elif evaluator_cfg.agent.model_name == 'internvla_n1':
         model_settings = internvla_n1_cfg.model_dump()
+    elif evaluator_cfg.agent.model_name == 'streamvln':
+        model_settings = streamvln_cfg.model_dump()
 
     model_settings.update(evaluator_cfg.agent.model_settings)
     evaluator_cfg.agent.model_settings = model_settings

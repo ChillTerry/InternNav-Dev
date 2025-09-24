@@ -4,6 +4,8 @@ import importlib.util
 import pickle
 import sys
 from typing import Dict
+import sys
+sys.path.append("/root/InternNav/internnav/model/basemodel")
 
 import uvicorn
 from fastapi import APIRouter, FastAPI, HTTPException, status
