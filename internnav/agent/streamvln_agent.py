@@ -135,7 +135,6 @@ class StreamvlnAgent(Agent):
         self._reset()
 
     def reset(self, reset_ls=None):
-        import ipdb; ipdb.set_trace()
         if reset_ls is None:
             reset_ls = [i for i in range(self._env_nums)]
         self._reset_ls.update(reset_ls)
@@ -152,6 +151,7 @@ class StreamvlnAgent(Agent):
         self.step_id = 0
         self.output_ids = None
         self.past_key_values = None
+        self._reset_ls = set()
 
         for i in self._reset_ls:
             self.policy.reset_for_env(i)
@@ -249,7 +249,7 @@ class StreamvlnAgent(Agent):
 
     def inference(self, obs):
         if self._need_reset:
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             self._reset()
             log.debug(f'model reset_ls: {self._reset_ls}')
         
@@ -287,7 +287,6 @@ class StreamvlnAgent(Agent):
                     history_ids = slice(0, self.time_ids[-1], self.num_future_steps)
                 else:
                     history_ids = slice(0, self.time_ids[-1], (self.time_ids[-1] // self.num_history))
-                print(history_ids)
                 images = self.rgb_list[history_ids] + images
                     
             input_dict = {'images':torch.stack(images).unsqueeze(0), 'depths':None, \
@@ -310,15 +309,16 @@ class StreamvlnAgent(Agent):
             print('actions', self.action_seq, flush=True)
             if len(self.action_seq) == 0: ## if generated llm without Specific values
                 self.action_seq = [0]
+        if self.step_id == 300:
+            self.action_seq = [0] # stop for running too long time
         action = self.action_seq.pop(0)
 
         self.step_id += 1
         if self.step_id % self.num_frames == 0:
+            self.policy.reset_for_env(0)
             self.output_ids = None
             self.past_key_values = None
             self.time_ids = []
-            for i in self._reset_ls:
-                self.policy.reset_for_env(i)
         return [[action]]
 
     def step(self, obs):
